@@ -16,11 +16,11 @@ import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.TextView
 import androidx.activity.ComponentActivity
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
-import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 
 class CameraTelemetryActivity : ComponentActivity() {
@@ -34,6 +34,26 @@ class CameraTelemetryActivity : ComponentActivity() {
         Manifest.permission.READ_PHONE_STATE,
         Manifest.permission.ACCESS_FINE_LOCATION
     )
+
+    private val permissionLauncher =
+        registerForActivityResult(
+            ActivityResultContracts.RequestMultiplePermissions()
+        ) { results ->
+            val allGranted = requiredPermissions.all { permission ->
+                results[permission] == true ||
+                    ContextCompat.checkSelfPermission(
+                        this, permission
+                    ) == PackageManager.PERMISSION_GRANTED
+            }
+            if (allGranted) {
+                startCamera()
+                refreshTelemetry()
+            } else {
+                overlay.text =
+                    "Permissions denied. Grant camera, phone state and " +
+                    "location permissions to use this screen."
+            }
+        }
 
     private val poller = object : Runnable {
         override fun run() {
@@ -77,7 +97,7 @@ class CameraTelemetryActivity : ComponentActivity() {
         if (hasPermissions()) {
             startCamera()
         } else {
-            ActivityCompat.requestPermissions(this, requiredPermissions, 710)
+            permissionLauncher.launch(requiredPermissions)
         }
     }
 
@@ -86,24 +106,6 @@ class CameraTelemetryActivity : ComponentActivity() {
             ContextCompat.checkSelfPermission(this, it) ==
                 PackageManager.PERMISSION_GRANTED
         }
-
-    override fun onRequestPermissionsResult(
-        requestCode: Int,
-        permissions: Array<out String>,
-        grantResults: IntArray
-    ) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode == 710) {
-            if (hasPermissions()) {
-                startCamera()
-                refreshTelemetry()
-            } else {
-                overlay.text =
-                    "Permissions denied. Grant camera, phone state and " +
-                    "location permissions to use this screen."
-            }
-        }
-    }
 
     private fun startCamera() {
         val future = ProcessCameraProvider.getInstance(this)
